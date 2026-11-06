@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活動時間 - 第一關與第二關挑戰</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', 'Fredoka', sans-serif;
+            background-color: #f0fdf4;
+            background-image: radial-gradient(#bbf7d0 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+        }
+
+        .clock-container {
+            filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.12));
+        }
+
+        /* 答對動畫 */
+        @keyframes bounce-short {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .bounce-active {
+            animation: bounce-short 0.4s ease infinite;
+        }
+
+        /* 答錯抖動動畫 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .shake-active {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* 消除 input [type=number] 箭頭 */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 text-gray-800 selection:bg-emerald-200">
+
+    <!-- 頂部標題與狀態欄 -->
+    <header class="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/90 backdrop-blur-md rounded-3xl p-4 sm:px-8 border-4 border-emerald-400 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="bg-amber-400 text-white p-3 rounded-2xl text-2xl shadow-inner">
+                <i class="fa-solid fa-clock"></i>
+            </div>
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black text-emerald-800 tracking-wide">活動時間數學館</h1>
+            </div>
+        </div>
+
+        <!-- 數據統計區塊 -->
+        <div class="flex items-center gap-3 w-full sm:w-auto justify-around sm:justify-end">
+            <!-- 已答對 -->
+            <div class="bg-emerald-50 border-2 border-emerald-300 px-3 py-1.5 rounded-2xl text-center">
+                <span class="text-xs font-bold text-emerald-600 block">已答對</span>
+                <span id="correct-count" class="text-lg font-black text-emerald-700">0</span>
+            </div>
+
+            <!-- 剩餘題數 -->
+            <div class="bg-amber-50 border-2 border-amber-300 px-3 py-1.5 rounded-2xl text-center">
+                <span class="text-xs font-bold text-amber-600 block">剩餘題數</span>
+                <span id="remaining-count" class="text-lg font-black text-amber-700">10</span>
+            </div>
+
+            <!-- 答錯/加題數 -->
+            <div class="bg-rose-50 border-2 border-rose-300 px-3 py-1.5 rounded-2xl text-center">
+                <span class="text-xs font-bold text-rose-600 block">答錯次數</span>
+                <span id="error-count" class="text-lg font-black text-rose-700">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 頂部獨立關卡切換按鈕區 -->
+    <nav class="w-full max-w-4xl my-3 flex flex-wrap justify-center gap-2 sm:gap-3">
+        <button id="level1-btn" onclick="switchLevel(1)" class="px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-emerald-600 text-white shadow-md hover:shadow-lg transform active:scale-95">
+            第一關：用了多少小時
+        </button>
+        <button id="level2-btn" onclick="switchLevel(2)" class="px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">
+            第二關：求結束時間
+        </button>
+        <button id="level3-btn" onclick="switchLevel(3)" class="px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">
+            第三關：求開始時間(指針)
+        </button>
+        <button id="level4-btn" onclick="switchLevel(4)" class="px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">
+            第四關：求開始時間(數字鐘)
+        </button>
+    </nav>
+
+    <!-- 主遊戲卡片 -->
+    <main class="w-full max-w-4xl bg-white rounded-3xl border-4 border-emerald-300 shadow-2xl p-4 sm:p-6 mb-4 flex-1 flex flex-col justify-between" id="game-card">
+        
+        <!-- 時間對比區域 -->
+        <div class="flex flex-col md:flex-row items-center justify-center gap-4 sm:gap-8 my-2 sm:my-4">
+            <!-- 開始時間容器 -->
+            <div id="start-clock-box" class="flex flex-col items-center bg-orange-50/80 p-3 sm:p-4 rounded-3xl border-2 border-orange-200 w-full md:w-1/2 max-w-xs min-h-[220px] justify-center relative">
+                <span id="start-title-text" class="text-base sm:text-lg font-black text-orange-600 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-play"></i> <span id="start-title-name">開始時間</span> <span id="start-label" class="bg-orange-200 text-orange-800 text-xs px-2 py-0.5 rounded-full font-bold">上午</span>
+                </span>
+                
+                <!-- 指針時鐘 -->
+                <div id="start-analog-container" class="clock-container w-44 h-44 sm:w-52 sm:h-52 relative">
+                    <svg id="start-clock" viewBox="0 0 200 200" class="w-full h-full"></svg>
+                    <!-- 第三關：開始時間指針鐘遮蓋 -->
+                    <div id="start-clock-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-amber-600 rounded-full border-4 border-amber-500 shadow-inner hidden">
+                        <span class="text-6xl font-black text-white animate-bounce drop-shadow">?</span>
+                        <span class="text-xs font-bold text-amber-100 mt-1">未知開始時間</span>
+                    </div>
+                </div>
+
+                <!-- 數位電子鐘 -->
+                <div id="start-digital-container" class="hidden my-auto w-full px-4 py-6 bg-gradient-to-r from-pink-400 to-rose-400 rounded-3xl shadow-lg border-4 border-pink-300 relative flex items-center justify-center">
+                    <div class="bg-white/95 rounded-2xl px-6 py-3 shadow-inner border-2 border-pink-200 text-center w-full">
+                        <span id="start-digital-text" class="font-mono text-3xl sm:text-4xl font-black text-gray-800 tracking-wider">11:52</span>
+                        <span id="start-digital-ampm" class="text-sm font-bold text-pink-600 ml-1">a.m.</span>
+                    </div>
+                    <!-- 第四關：開始時間數位鐘遮蓋 -->
+                    <div id="start-digital-overlay" class="absolute inset-0 bg-slate-800 rounded-3xl border-4 border-slate-600 flex items-center justify-center shadow-inner hidden">
+                        <span class="text-5xl font-black text-amber-400 animate-bounce drop-shadow">?</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 轉移箭頭 -->
+            <div class="text-amber-400 text-3xl sm:text-5xl my-1 md:my-0 flex items-center justify-center flex-col">
+                <span id="arrow-subtext" class="text-xs sm:text-sm font-black text-purple-600 bg-purple-100 px-3 py-1 rounded-full hidden mb-1 shadow-sm">4 小時後</span>
+                <i class="fa-solid fa-right-long hidden md:block animate-pulse"></i>
+                <i class="fa-solid fa-down-long md:hidden animate-pulse"></i>
+            </div>
+
+            <!-- 結束時間容器 -->
+            <div id="end-clock-box" class="flex flex-col items-center bg-sky-50/80 p-3 sm:p-4 rounded-3xl border-2 border-sky-200 w-full md:w-1/2 max-w-xs min-h-[220px] justify-center">
+                <span id="end-title-text" class="text-base sm:text-lg font-black text-sky-600 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-flag-checkered"></i> <span id="end-title-name">結束時間</span> <span id="end-label" class="bg-sky-200 text-sky-800 text-xs px-2 py-0.5 rounded-full font-bold">上午</span>
+                </span>
+                
+                <!-- 指針時鐘 -->
+                <div id="end-analog-container" class="clock-container w-44 h-44 sm:w-52 sm:h-52 relative">
+                    <svg id="end-clock" viewBox="0 0 200 200" class="w-full h-full"></svg>
+                    <!-- 第二關：結束時間遮蓋層 -->
+                    <div id="end-clock-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 rounded-full border-4 border-slate-600 shadow-inner hidden">
+                        <span class="text-6xl font-black text-amber-400 animate-bounce drop-shadow">?</span>
+                        <span class="text-xs font-bold text-slate-300 mt-1">結束時間</span>
+                    </div>
+                </div>
+
+                <!-- 數位電子鐘 -->
+                <div id="end-digital-container" class="hidden my-auto w-full px-4 py-6 bg-gradient-to-r from-sky-400 to-blue-400 rounded-3xl shadow-lg border-4 border-sky-300 relative flex items-center justify-center">
+                    <div class="bg-white/95 rounded-2xl px-6 py-3 shadow-inner border-2 border-sky-200 text-center w-full">
+                        <span id="end-digital-text" class="font-mono text-3xl sm:text-4xl font-black text-gray-800 tracking-wider">12:10</span>
+                        <span id="end-digital-ampm" class="text-sm font-bold text-sky-600 ml-1">p.m.</span>
+                    </div>
+                    <div id="end-digital-overlay" class="absolute inset-0 bg-slate-800 rounded-3xl border-4 border-slate-600 flex items-center justify-center shadow-inner hidden">
+                        <span class="text-5xl font-black text-amber-400 animate-bounce">?</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 題目內容區域 -->
+        <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3 sm:p-4 my-2 text-center shadow-sm">
+            <div class="inline-flex items-center justify-center bg-amber-400 text-white rounded-full w-8 h-8 mr-2 shadow">
+                <i class="fa-regular fa-lightbulb text-lg"></i>
+            </div>
+            <span id="question-text" class="text-lg sm:text-2xl font-black text-gray-800 leading-relaxed">安琪下棋用了 <span class="underline underline-offset-4 decoration-amber-500 decoration-4 text-emerald-700">&nbsp;&nbsp;&nbsp;&nbsp;</span> 小時。</span>
+        </div>
+
+        <!-- 答題區域 (支援上/下午選擇、小時、分鐘輸入) -->
+        <div class="max-w-md mx-auto w-full flex flex-col items-center gap-3">
+            <form onsubmit="handleFormSubmit(event)" class="flex flex-wrap items-center justify-center gap-2 w-full">
+                <!-- 上午/下午選擇器 -->
+                <div id="ampm-select-container" class="flex items-center gap-1 hidden">
+                    <select id="ampm-select" class="text-base sm:text-lg font-black text-purple-900 bg-purple-100 border-4 border-purple-400 rounded-2xl py-2 px-3 focus:outline-none focus:border-purple-600 transition cursor-pointer">
+                        <option value="" disabled selected>-- 請選擇 --</option>
+                        <option value="上午">上午</option>
+                        <option value="下午">下午</option>
+                    </select>
+                </div>
+
+                <!-- 輸入時 -->
+                <div class="flex items-center gap-1">
+                    <input type="number" id="answer-input" min="1" max="12" placeholder="時" class="w-20 sm:w-24 text-center text-2xl sm:text-3xl font-black text-emerald-800 bg-emerald-50 border-4 border-emerald-400 rounded-2xl py-2 px-2 focus:outline-none focus:border-emerald-600 focus:bg-white transition" autocomplete="off" required autofocus>
+                    <span id="unit-label-1" class="text-xl font-black text-gray-700">小時</span>
+                </div>
+
+                <!-- 輸入分 -->
+                <div id="minute-input-container" class="flex items-center gap-1 hidden">
+                    <input type="number" id="answer-input-min" min="0" max="59" placeholder="分" class="w-20 sm:w-24 text-center text-2xl sm:text-3xl font-black text-emerald-800 bg-emerald-50 border-4 border-emerald-400 rounded-2xl py-2 px-2 focus:outline-none focus:border-emerald-600 focus:bg-white transition" autocomplete="off">
+                    <span class="text-xl font-black text-gray-700">分</span>
+                </div>
+
+                <button type="submit" id="submit-btn" class="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black text-lg py-2.5 px-6 rounded-2xl shadow-lg transform active:scale-95 transition flex items-center gap-2 ml-2">
+                    <span>送出</span>
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+
+        <!-- 回饋訊息提示 -->
+        <div id="feedback-msg" class="h-8 text-center font-bold text-base sm:text-lg mt-2 transition-all duration-200 opacity-0 flex items-center justify-center gap-2">
+        </div>
+    </main>
+
+    <!-- 通關結算 Modal -->
+    <div id="result-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-3xl border-4 border-amber-400 p-6 sm:p-8 max-w-md w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-3 border-4 border-amber-300 text-4xl shadow-md">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-black text-gray-800 mb-1">太棒了！挑戰成功！</h2>
+            <p class="text-gray-600 font-bold text-sm mb-4">你已完成本關的所有考驗！</p>
+            
+            <div class="bg-slate-50 rounded-2xl p-4 border border-gray-200 mb-6 grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    <div class="text-xs text-gray-400 font-bold">總共答對</div>
+                    <div id="final-correct" class="text-2xl font-black text-emerald-600">10 題</div>
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    <div class="text-xs text-gray-400 font-bold">答錯加題</div>
+                    <div id="final-errors" class="text-2xl font-black text-rose-500">0 次</div>
+                </div>
+            </div>
+
+            <button onclick="resetGame()" class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black py-3.5 px-6 rounded-2xl text-lg shadow-lg transform active:scale-95 transition">
+                <i class="fa-solid fa-rotate-right mr-2"></i> 重新開始挑戰
+            </button>
+        </div>
+    </div>
+
+    <!-- 頁腳 -->
+    <footer class="text-xs text-emerald-700 font-bold opacity-80 mt-1">
+        小學數學互動學習館 © 活動時間關卡挑戰
+    </footer>
+
+    <script>
+        let currentLevel = 1;
+        let remainingTarget = 10;
+        let correctCount = 0;
+        let errorCount = 0;
+        let currentQuestion = null;
+        let isProcessing = false;
+        let countdownInterval = null;
+
+        const names = ["安琪", "柏康", "樂天", "子賢", "美玲", "小明", "家豪", "心怡", "偉強", "巧兒"];
+        const actVerbs = ["睡覺", "溜滑梯", "看書", "做運動", "彈鋼琴", "烹飪班", "畫畫", "游泳", "下棋", "玩積木"];
+        const places = ["公園", "圖書館", "主題公園", "游泳池", "博物館", "運動場"];
+
+        let level2QuestionPool = [];
+        let level3QuestionPool = [];
+        let level4QuestionPool = [];
+
+        function initLevel2Pool() {
+            level2QuestionPool = [1,2,3,4,5,6,7,8,9,10,11,12].sort(() => Math.random() - 0.5);
+        }
+
+        function initLevel3Pool() {
+            level3QuestionPool = [1,1,1,1, 2,2,2, 3,3,3].sort(() => Math.random() - 0.5);
+        }
+
+        function initLevel4Pool() {
+            level4QuestionPool = [1,1,1, 2,2,2, 3,3, 4,4].sort(() => Math.random() - 0.5);
+        }
+
+        function setElementHidden(id, hide) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (hide) {
+                    el.classList.add('hidden');
+                } else {
+                    el.classList.remove('hidden');
+                }
+            }
+        }
+
+        function renderClock(svgId, hour, minute, themeColor = '#f97316') {
+            const svg = document.getElementById(svgId);
+            if (!svg) return;
+            svg.innerHTML = '';
+            const ns = "http://www.w3.org/2000/svg";
+
+            const outerCircle = document.createElementNS(ns, "circle");
+            outerCircle.setAttribute("cx", "100");
+            outerCircle.setAttribute("cy", "100");
+            outerCircle.setAttribute("r", "94");
+            outerCircle.setAttribute("fill", "#ffffff");
+            outerCircle.setAttribute("stroke", themeColor);
+            outerCircle.setAttribute("stroke-width", "10");
+            svg.appendChild(outerCircle);
+
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6) * (Math.PI / 180);
+                const isHourTick = (i % 5 === 0);
+                const tickLength = isHourTick ? 9 : 5;
+                const strokeWidth = isHourTick ? "3.5" : "1.5";
+                const strokeColor = isHourTick ? "#374151" : "#9ca3af";
+
+                const tickStartX = 100 + (88 - tickLength) * Math.sin(angle);
+                const tickStartY = 100 - (88 - tickLength) * Math.cos(angle);
+                const tickEndX = 100 + 88 * Math.sin(angle);
+                const tickEndY = 100 - 88 * Math.cos(angle);
+
+                const line = document.createElementNS(ns, "line");
+                line.setAttribute("x1", tickStartX);
+                line.setAttribute("y1", tickStartY);
+                line.setAttribute("x2", tickEndX);
+                line.setAttribute("y2", tickEndY);
+                line.setAttribute("stroke", strokeColor);
+                line.setAttribute("stroke-width", strokeWidth);
+                svg.appendChild(line);
+            }
+
+            for (let i = 1; i <= 12; i++) {
+                const angle = (i * 30) * (Math.PI / 180);
+                const numX = 100 + 67 * Math.sin(angle);
+                const numY = 100 - 67 * Math.cos(angle);
+                const text = document.createElementNS(ns, "text");
+                text.setAttribute("x", numX);
+                text.setAttribute("y", numY + 6);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("font-size", "17");
+                text.setAttribute("font-weight", "bold");
+                text.setAttribute("fill", "#1f2937");
+                text.textContent = i;
+                svg.appendChild(text);
+            }
+
+            const minuteAngle = minute * 6;
+            const hourAngle = ((hour % 12) * 30) + (minute * 0.5);
+
+            const hourHand = document.createElementNS(ns, "line");
+            const hRad = hourAngle * (Math.PI / 180);
+            hourHand.setAttribute("x1", "100");
+            hourHand.setAttribute("y1", "100");
+            hourHand.setAttribute("x2", 100 + 45 * Math.sin(hRad));
+            hourHand.setAttribute("y2", 100 - 45 * Math.cos(hRad));
+            hourHand.setAttribute("stroke", "#8b5cf6");
+            hourHand.setAttribute("stroke-width", "7");
+            hourHand.setAttribute("stroke-linecap", "round");
+            svg.appendChild(hourHand);
+
+            const minuteHand = document.createElementNS(ns, "line");
+            const mRad = minuteAngle * (Math.PI / 180);
+            minuteHand.setAttribute("x1", "100");
+            minuteHand.setAttribute("y1", "100");
+            minuteHand.setAttribute("x2", 100 + 68 * Math.sin(mRad));
+            minuteHand.setAttribute("y2", 100 - 68 * Math.cos(mRad));
+            minuteHand.setAttribute("stroke", "#0284c7");
+            minuteHand.setAttribute("stroke-width", "5");
+            minuteHand.setAttribute("stroke-linecap", "round");
+            svg.appendChild(minuteHand);
+
+            const centerCap = document.createElementNS(ns, "circle");
+            centerCap.setAttribute("cx", "100");
+            centerCap.setAttribute("cy", "100");
+            centerCap.setAttribute("r", "6");
+            centerCap.setAttribute("fill", "#4b5563");
+            svg.appendChild(centerCap);
+        }
+
+        function updateStats() {
+            document.getElementById('correct-count').textContent = correctCount;
+            document.getElementById('remaining-count').textContent = remainingTarget;
+            document.getElementById('error-count').textContent = errorCount;
+        }
+
+        function switchLevel(level) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            currentLevel = level;
+            correctCount = 0;
+            errorCount = 0;
+            isProcessing = false;
+
+            const l1Btn = document.getElementById('level1-btn');
+            const l2Btn = document.getElementById('level2-btn');
+            const l3Btn = document.getElementById('level3-btn');
+            const l4Btn = document.getElementById('level4-btn');
+
+            const inactiveCls = "px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow";
+
+            if (l1Btn) l1Btn.className = inactiveCls;
+            if (l2Btn) l2Btn.className = inactiveCls;
+            if (l3Btn) l3Btn.className = inactiveCls;
+            if (l4Btn) l4Btn.className = inactiveCls;
+
+            if (level === 1) {
+                remainingTarget = 10;
+                if (l1Btn) l1Btn.className = "px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-emerald-600 text-white shadow-md hover:shadow-lg transform active:scale-95";
+            } else if (level === 2) {
+                remainingTarget = 12;
+                initLevel2Pool();
+                if (l2Btn) l2Btn.className = "px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-purple-600 text-white shadow-md hover:shadow-lg transform active:scale-95";
+            } else if (level === 3) {
+                remainingTarget = 10;
+                initLevel3Pool();
+                if (l3Btn) l3Btn.className = "px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-amber-600 text-white shadow-md hover:shadow-lg transform active:scale-95";
+            } else if (level === 4) {
+                remainingTarget = 10;
+                initLevel4Pool();
+                if (l4Btn) l4Btn.className = "px-3 sm:px-4 py-2 text-xs sm:text-sm font-black rounded-2xl transition bg-rose-600 text-white shadow-md hover:shadow-lg transform active:scale-95";
+            }
+
+            updateStats();
+            generateQuestion();
+        }
+
+        function generateQuestion() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            isProcessing = false;
+
+            const feedback = document.getElementById('feedback-msg');
+            if (feedback) {
+                feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 transition-all duration-200 opacity-0 flex items-center justify-center gap-2";
+            }
+
+            const hourInput = document.getElementById('answer-input');
+            const minInput = document.getElementById('answer-input-min');
+            const ampmSelect = document.getElementById('ampm-select');
+            
+            if (hourInput) hourInput.value = '';
+            if (minInput) minInput.value = '';
+            if (ampmSelect) ampmSelect.selectedIndex = 0;
+            if (hourInput) hourInput.focus();
+
+            const startTitle = document.getElementById('start-title-name');
+            const endTitle = document.getElementById('end-title-name');
+            if (startTitle) startTitle.textContent = "開始時間";
+            if (endTitle) endTitle.textContent = "結束時間";
+
+            const unitLabel1 = document.getElementById('unit-label-1');
+
+            if (currentLevel === 1) {
+                setElementHidden('start-label', false);
+                setElementHidden('end-label', false);
+                setElementHidden('start-analog-container', false);
+                setElementHidden('start-digital-container', true);
+                setElementHidden('start-clock-overlay', true);
+                setElementHidden('start-digital-overlay', true);
+
+                setElementHidden('end-analog-container', false);
+                setElementHidden('end-digital-container', true);
+                setElementHidden('end-clock-overlay', true);
+                setElementHidden('end-digital-overlay', true);
+
+                setElementHidden('arrow-subtext', true);
+                setElementHidden('ampm-select-container', true);
+                setElementHidden('minute-input-container', true);
+                if (unitLabel1) unitLabel1.textContent = "小時";
+
+                const isCross12 = Math.random() < 0.5;
+                let startHour, endHour, duration;
+
+                // 【第一關修訂】：避開 0 分與 30 分，改為隨機選取 5, 10, 15, 20, 25, 35, 40, 45, 50, 55 分
+                const validMinutes = [5, 10, 15, 20, 25, 35, 40, 45, 50, 55];
+                const minute = validMinutes[Math.floor(Math.random() * validMinutes.length)];
+
+                if (isCross12) {
+                    startHour = Math.floor(Math.random() * 3) + 9;
+                    endHour = Math.floor(Math.random() * 4) + 1;
+                    duration = (12 - startHour) + endHour;
+                    document.getElementById('start-label').textContent = "上午";
+                    document.getElementById('end-label').textContent = "下午";
+                } else {
+                    startHour = Math.floor(Math.random() * 5) + 1;
+                    duration = Math.floor(Math.random() * 4) + 1;
+                    endHour = startHour + duration;
+                    const ampmStr = Math.random() < 0.5 ? "上午" : "下午";
+                    document.getElementById('start-label').textContent = ampmStr;
+                    document.getElementById('end-label').textContent = ampmStr;
+                }
+
+                renderClock('start-clock', startHour, minute, '#f97316');
+                renderClock('end-clock', endHour, minute, '#0284c7');
+
+                const person = names[Math.floor(Math.random() * names.length)];
+                const act = actVerbs[Math.floor(Math.random() * actVerbs.length)];
+
+                document.getElementById('question-text').innerHTML = `${person}${act}用了 <span class="underline underline-offset-4 decoration-amber-500 decoration-4 text-emerald-700">&nbsp;&nbsp;&nbsp;&nbsp;</span> 小時。`;
+
+                currentQuestion = {
+                    type: 'L1',
+                    expectedHour: duration,
+                    expectedMin: 0,
+                    expectedAmPm: null
+                };
+
+            } else if (currentLevel === 2) {
+                if (level2QuestionPool.length === 0) initLevel2Pool();
+                const qType = level2QuestionPool.pop();
+
+                // 【第二關修訂】：隱藏標題旁的「上午/下午」標籤，防止提示答案
+                setElementHidden('start-label', true);
+                setElementHidden('end-label', true);
+
+                setElementHidden('minute-input-container', false);
+                if (unitLabel1) unitLabel1.textContent = "時";
+                setElementHidden('start-clock-overlay', true);
+                setElementHidden('start-digital-overlay', true);
+
+                if (qType <= 3) {
+                    setElementHidden('start-analog-container', false);
+                    setElementHidden('start-digital-container', true);
+                    setElementHidden('end-analog-container', false);
+                    setElementHidden('end-digital-container', true);
+                    setElementHidden('end-clock-overlay', false);
+                    setElementHidden('end-digital-overlay', true);
+                    setElementHidden('arrow-subtext', true);
+                    setElementHidden('ampm-select-container', true);
+
+                    const startH = Math.floor(Math.random() * 6) + 1;
+                    const min = Math.random() < 0.5 ? 0 : 30;
+                    const addH = Math.floor(Math.random() * 4) + 1;
+                    const endH = startH + addH;
+
+                    const ampmChoice = Math.random() < 0.5 ? "上午" : "下午";
+                    document.getElementById('start-label').textContent = ampmChoice;
+                    document.getElementById('end-label').textContent = ampmChoice;
+
+                    renderClock('start-clock', startH, min, '#f97316');
+                    renderClock('end-clock', endH, min, '#0284c7');
+
+                    document.getElementById('question-text').innerHTML = `<span class="text-purple-700">${addH} 小時後</span>是 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分。`;
+
+                    currentQuestion = {
+                        type: 'L2_1',
+                        expectedHour: endH,
+                        expectedMin: min,
+                        expectedAmPm: null
+                    };
+
+                } else if (qType <= 6) {
+                    setElementHidden('start-analog-container', false);
+                    setElementHidden('start-digital-container', true);
+                    setElementHidden('end-analog-container', false);
+                    setElementHidden('end-digital-container', true);
+                    setElementHidden('end-clock-overlay', false);
+                    setElementHidden('end-digital-overlay', true);
+                    setElementHidden('arrow-subtext', true);
+                    setElementHidden('ampm-select-container', true);
+
+                    const startH = Math.floor(Math.random() * 8) + 1;
+                    const startM = Math.floor(Math.random() * 4) * 10 + 5;
+                    const addM = Math.floor(Math.random() * 3) * 10 + 15;
+                    
+                    let totalM = startM + addM;
+                    let endH = startH + Math.floor(totalM / 60);
+                    let endM = totalM % 60;
+
+                    const ampmChoice = Math.random() < 0.5 ? "上午" : "下午";
+                    document.getElementById('start-label').textContent = ampmChoice;
+                    document.getElementById('end-label').textContent = ampmChoice;
+
+                    renderClock('start-clock', startH, startM, '#f97316');
+                    renderClock('end-clock', endH, endM, '#0284c7');
+
+                    document.getElementById('question-text').innerHTML = `<span class="text-purple-700">${addM} 分鐘後</span>是 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分。`;
+
+                    currentQuestion = {
+                        type: 'L2_2',
+                        expectedHour: endH,
+                        expectedMin: endM,
+                        expectedAmPm: null
+                    };
+
+                } else if (qType <= 9) {
+                    setElementHidden('start-analog-container', true);
+                    setElementHidden('start-digital-container', false);
+                    setElementHidden('end-analog-container', true);
+                    setElementHidden('end-digital-container', false);
+                    setElementHidden('end-digital-overlay', false);
+                    setElementHidden('arrow-subtext', true);
+                    setElementHidden('ampm-select-container', false);
+
+                    // 【第二關修訂】：動態切換 endAmPm
+                    // 開始為「下午」(11:XX p.m.) 時，跨 12 點結束時間為「上午」(12:XX a.m.)
+                    // 開始為「上午」(11:XX a.m.) 時，跨 12 點結束時間為「下午」(12:XX p.m.)
+                    const isMorning = Math.random() < 0.5;
+                    const startAmPm = isMorning ? "上午" : "下午";
+                    const endAmPm = startAmPm === "下午" ? "上午" : "下午";
+
+                    const startH = 11;
+                    const startM = Math.floor(Math.random() * 15) + 40;
+                    const addM = (60 - startM) + Math.floor(Math.random() * 20) + 5;
+                    
+                    const endH = 12;
+                    const endM = (startM + addM) - 60;
+
+                    document.getElementById('start-digital-text').textContent = `${startH}:${startM < 10 ? '0' + startM : startM}`;
+                    document.getElementById('start-digital-ampm').textContent = isMorning ? "a.m." : "p.m.";
+
+                    document.getElementById('end-digital-text').textContent = `${endH}:${endM < 10 ? '0' + endM : endM}`;
+                    document.getElementById('end-digital-ampm').textContent = endAmPm === "下午" ? "p.m." : "a.m.";
+
+                    document.getElementById('start-label').textContent = startAmPm;
+                    document.getElementById('end-label').textContent = endAmPm;
+
+                    document.getElementById('question-text').innerHTML = `<span class="text-purple-700">${addM} 分鐘後</span>是 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分。`;
+
+                    currentQuestion = {
+                        type: 'L2_3',
+                        expectedHour: 12,
+                        expectedMin: endM,
+                        expectedAmPm: endAmPm
+                    };
+
+                } else {
+                    setElementHidden('start-analog-container', true);
+                    setElementHidden('start-digital-container', false);
+                    setElementHidden('end-analog-container', true);
+                    setElementHidden('end-digital-container', false);
+                    setElementHidden('end-digital-overlay', false);
+                    setElementHidden('arrow-subtext', false);
+                    setElementHidden('ampm-select-container', false);
+
+                    const isStartMorning = Math.random() < 0.5;
+                    const startAmPm = isStartMorning ? "上午" : "下午";
+
+                    const startH = Math.floor(Math.random() * 3) + 8;
+                    const startM = Math.floor(Math.random() * 30) + 5;
+                    const addH = Math.floor(Math.random() * 3) + 4;
+                    let totalH = startH + addH;
+                    
+                    let endH = totalH > 12 ? (totalH - 12) : totalH;
+                    let endAmPm = startAmPm;
+                    if (totalH >= 12) {
+                        endAmPm = startAmPm === "上午" ? "下午" : "上午";
+                    }
+
+                    const startMStr = startM < 10 ? '0' + startM : startM;
+
+                    document.getElementById('start-digital-text').textContent = `${startH}:${startMStr}`;
+                    document.getElementById('start-digital-ampm').textContent = isStartMorning ? "a.m." : "p.m.";
+                    document.getElementById('end-digital-text').textContent = `${endH}:${startMStr}`;
+                    document.getElementById('end-digital-ampm').textContent = endAmPm === "下午" ? "p.m." : "a.m.";
+
+                    document.getElementById('start-label').textContent = startAmPm;
+                    document.getElementById('end-label').textContent = endAmPm;
+
+                    const arrowSubtext = document.getElementById('arrow-subtext');
+                    if (arrowSubtext) arrowSubtext.textContent = `${addH} 小時後`;
+
+                    document.getElementById('question-text').innerHTML = `${addH} 小時後是 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分。`;
+
+                    currentQuestion = {
+                        type: 'L2_4',
+                        expectedHour: endH,
+                        expectedMin: startM,
+                        expectedAmPm: endAmPm
+                    };
+                }
+
+            } else if (currentLevel === 3) {
+                if (level3QuestionPool.length === 0) initLevel3Pool();
+                const qType = level3QuestionPool.pop();
+
+                setElementHidden('start-label', false);
+                setElementHidden('end-label', false);
+
+                setElementHidden('start-analog-container', false);
+                setElementHidden('start-digital-container', true);
+                setElementHidden('start-clock-overlay', false);
+                setElementHidden('start-digital-overlay', true);
+                
+                setElementHidden('end-analog-container', false);
+                setElementHidden('end-digital-container', true);
+                setElementHidden('end-clock-overlay', true);
+                setElementHidden('end-digital-overlay', true);
+
+                setElementHidden('ampm-select-container', true);
+                setElementHidden('minute-input-container', false);
+                if (unitLabel1) unitLabel1.textContent = "時";
+                setElementHidden('arrow-subtext', false);
+
+                document.getElementById('start-label').textContent = "開始時間";
+                document.getElementById('end-label').textContent = "結束時間";
+
+                const person = names[Math.floor(Math.random() * names.length)];
+                const act = actVerbs[Math.floor(Math.random() * actVerbs.length)];
+
+                let startH, startM, durationVal, endH, endM;
+
+                if (qType === 1) {
+                    durationVal = Math.floor(Math.random() * 4) + 2;
+                    startH = Math.floor(Math.random() * 6) + 1;
+                    startM = (Math.floor(Math.random() * 4) * 10) + 10;
+                    endH = startH + durationVal;
+                    endM = startM;
+                    const arrowSubtext = document.getElementById('arrow-subtext');
+                    if (arrowSubtext) arrowSubtext.textContent = `${durationVal} 小時後`;
+                } else if (qType === 2) {
+                    durationVal = Math.floor(Math.random() * 3) * 10 + 15;
+                    startH = Math.floor(Math.random() * 8) + 1;
+                    startM = 15;
+                    endH = startH;
+                    endM = startM + durationVal;
+                    const arrowSubtext = document.getElementById('arrow-subtext');
+                    if (arrowSubtext) arrowSubtext.textContent = `${durationVal} 分鐘後`;
+                } else {
+                    durationVal = Math.floor(Math.random() * 3) * 10 + 20;
+                    startH = Math.floor(Math.random() * 7) + 2;
+                    startM = Math.floor(Math.random() * 15) + 40;
+                    let totalEndM = startM + durationVal;
+                    endH = startH + Math.floor(totalEndM / 60);
+                    endM = totalEndM % 60;
+                    const arrowSubtext = document.getElementById('arrow-subtext');
+                    if (arrowSubtext) arrowSubtext.textContent = `${durationVal} 分鐘後`;
+                }
+
+                renderClock('start-clock', startH, startM, '#f97316');
+                renderClock('end-clock', endH, endM, '#0284c7');
+
+                document.getElementById('question-text').innerHTML = `${person}在 <span class="underline decoration-amber-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-amber-500 decoration-4">&nbsp;?&nbsp;</span> 分開始${act}。`;
+
+                currentQuestion = {
+                    type: 'L3',
+                    expectedHour: startH,
+                    expectedMin: startM,
+                    expectedAmPm: null
+                };
+
+            } else if (currentLevel === 4) {
+                if (level4QuestionPool.length === 0) initLevel4Pool();
+                const qType = level4QuestionPool.pop();
+
+                setElementHidden('start-label', false);
+                setElementHidden('end-label', false);
+
+                setElementHidden('start-analog-container', true);
+                setElementHidden('start-digital-container', false);
+                setElementHidden('start-digital-overlay', false);
+                setElementHidden('start-clock-overlay', true);
+
+                setElementHidden('end-analog-container', true);
+                setElementHidden('end-digital-container', false);
+                setElementHidden('end-digital-overlay', true);
+                setElementHidden('end-clock-overlay', true);
+
+                setElementHidden('ampm-select-container', false);
+                setElementHidden('minute-input-container', false);
+                if (unitLabel1) unitLabel1.textContent = "時";
+                setElementHidden('arrow-subtext', false);
+
+                let startH, startM, startAmPm, endH, endM, endAmPm, durationText;
+                let textTemplate = "";
+
+                if (qType === 1) {
+                    const addH = Math.floor(Math.random() * 3) + 2;
+                    startH = 12 - Math.floor(Math.random() * 2) - 1;
+                    startM = Math.floor(Math.random() * 40) + 10;
+                    endM = startM;
+                    startAmPm = "上午";
+
+                    let totalH = startH + addH;
+                    endH = totalH > 12 ? (totalH - 12) : totalH;
+                    endAmPm = "下午";
+
+                    durationText = `${addH} 小時後`;
+                    document.getElementById('start-label').textContent = "開始時間";
+                    document.getElementById('end-label').textContent = "結束時間";
+
+                    const actSubject = ["烹飪班", "興趣班", "舞蹈班", "繪畫班"][Math.floor(Math.random() * 4)];
+                    textTemplate = `${actSubject}在 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分開始。`;
+
+                } else if (qType === 2) {
+                    const subM = Math.floor(Math.random() * 20) + 15;
+                    endH = Math.floor(Math.random() * 3) + 2;
+                    endM = Math.floor(Math.random() * 15) + 5;
+                    endAmPm = "下午";
+
+                    let totalEndMin = endH * 60 + endM - subM;
+                    startH = Math.floor(totalEndMin / 60);
+                    startM = totalEndMin % 60;
+                    startAmPm = "下午";
+
+                    durationText = `${subM} 分鐘後`;
+                    document.getElementById('start-label').textContent = "到達時間";
+                    document.getElementById('end-label').textContent = "離開時間";
+                    if (startTitle) startTitle.textContent = "到達時間";
+                    if (endTitle) endTitle.textContent = "離開時間";
+
+                    const person = names[Math.floor(Math.random() * names.length)];
+                    const place = places[Math.floor(Math.random() * places.length)];
+                    textTemplate = `${person}在 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分到達${place}。`;
+
+                } else if (qType === 3) {
+                    const subM = Math.floor(Math.random() * 20) + 20;
+                    endH = 12;
+                    endM = Math.floor(Math.random() * 15) + 5;
+                    endAmPm = "下午";
+
+                    startH = 11;
+                    startM = 60 + endM - subM;
+                    startAmPm = "上午";
+
+                    durationText = `${subM} 分鐘後`;
+                    document.getElementById('start-label').textContent = "開始時間";
+                    document.getElementById('end-label').textContent = "結束時間";
+
+                    const person = names[Math.floor(Math.random() * names.length)];
+                    const act = actVerbs[Math.floor(Math.random() * actVerbs.length)];
+                    textTemplate = `${person}在 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分開始${act}。`;
+
+                } else {
+                    const isHourSub = Math.random() < 0.5;
+                    startAmPm = "下午";
+                    endAmPm = "下午";
+
+                    if (isHourSub) {
+                        const subH = Math.floor(Math.random() * 2) + 2;
+                        startH = Math.floor(Math.random() * 2) + 1;
+                        startM = Math.floor(Math.random() * 40) + 10;
+                        endH = startH + subH;
+                        endM = startM;
+                        durationText = `${subH} 小時後`;
+                    } else {
+                        const subM = Math.floor(Math.random() * 20) + 15;
+                        startH = Math.floor(Math.random() * 3) + 2;
+                        startM = Math.floor(Math.random() * 20) + 5;
+                        endH = startH;
+                        endM = startM + subM;
+                        durationText = `${subM} 分鐘後`;
+                    }
+
+                    document.getElementById('start-label').textContent = "開始時間";
+                    document.getElementById('end-label').textContent = "結束時間";
+
+                    const person = names[Math.floor(Math.random() * names.length)];
+                    const act = actVerbs[Math.floor(Math.random() * actVerbs.length)];
+                    textTemplate = `${person}在 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 午 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 時 <span class="underline decoration-purple-500 decoration-4">&nbsp;?&nbsp;</span> 分開始${act}。`;
+                }
+
+                const startMStr = startM < 10 ? '0' + startM : startM;
+                const endMStr = endM < 10 ? '0' + endM : endM;
+
+                document.getElementById('start-digital-text').textContent = `${startH}:${startMStr}`;
+                document.getElementById('start-digital-ampm').textContent = startAmPm === "上午" ? "a.m." : "p.m.";
+
+                document.getElementById('end-digital-text').textContent = `${endH}:${endMStr}`;
+                document.getElementById('end-digital-ampm').textContent = endAmPm === "上午" ? "a.m." : "p.m.";
+
+                const arrowSubtext = document.getElementById('arrow-subtext');
+                if (arrowSubtext) arrowSubtext.textContent = durationText;
+                document.getElementById('question-text').innerHTML = textTemplate;
+
+                currentQuestion = {
+                    type: 'L4',
+                    expectedHour: startH,
+                    expectedMin: startM,
+                    expectedAmPm: startAmPm
+                };
+            }
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            if (isProcessing) return;
+
+            const hourInput = document.getElementById('answer-input');
+            const minInput = document.getElementById('answer-input-min');
+            const ampmSelect = document.getElementById('ampm-select');
+            const feedback = document.getElementById('feedback-msg');
+
+            const userHStr = hourInput.value.trim();
+            const userMStr = minInput.value.trim();
+            const userAmPm = ampmSelect.value;
+
+            if (!userHStr) return;
+
+            if (currentLevel >= 2) {
+                const ampmContainer = document.getElementById('ampm-select-container');
+                if (ampmContainer && !ampmContainer.classList.contains('hidden') && (!userAmPm || userAmPm === "")) {
+                    feedback.innerHTML = `<span class="text-amber-700 bg-amber-100 px-3 py-1 rounded-full"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 請選擇「上午」或「下午」喔！</span>`;
+                    feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 transition-all duration-200 opacity-100 flex items-center justify-center gap-2";
+                    ampmSelect.focus();
+                    return;
+                }
+
+                if (userMStr.length > 1 && userMStr.startsWith('0')) {
+                    const cleanNum = parseInt(userMStr, 10);
+                    feedback.innerHTML = `<span class="text-amber-700 bg-amber-100 px-3 py-1 rounded-full"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 分鐘請輸入 <strong>${cleanNum}</strong>，不要填寫 ${userMStr} 哦！</span>`;
+                    feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 transition-all duration-200 opacity-100 flex items-center justify-center gap-2";
+                    minInput.value = cleanNum;
+                    minInput.focus();
+                    return;
+                }
+            }
+
+            const userHour = parseInt(userHStr, 10);
+            const userMin = userMStr !== '' ? parseInt(userMStr, 10) : 0;
+
+            let isCorrect = false;
+
+            if (currentLevel === 1) {
+                isCorrect = (userHour === currentQuestion.expectedHour);
+            } else if (currentQuestion.expectedAmPm) {
+                isCorrect = (userHour === currentQuestion.expectedHour) && 
+                            (userMin === currentQuestion.expectedMin) && 
+                            (userAmPm === currentQuestion.expectedAmPm);
+            } else {
+                isCorrect = (userHour === currentQuestion.expectedHour) && 
+                            (userMin === currentQuestion.expectedMin);
+            }
+
+            const card = document.getElementById('game-card');
+
+            if (isCorrect) {
+                isProcessing = true;
+                correctCount++;
+                remainingTarget--;
+                updateStats();
+
+                setElementHidden('start-clock-overlay', true);
+                setElementHidden('start-digital-overlay', true);
+                setElementHidden('end-clock-overlay', true);
+                setElementHidden('end-digital-overlay', true);
+
+                confetti({
+                    particleCount: 70,
+                    spread: 60,
+                    origin: { y: 0.7 }
+                });
+
+                if (remainingTarget <= 0) {
+                    document.getElementById('final-correct').textContent = `${correctCount} 題`;
+                    document.getElementById('final-errors').textContent = `${errorCount} 次`;
+                    document.getElementById('result-modal').classList.remove('hidden');
+                } else {
+                    if (currentLevel === 1) {
+                        feedback.innerHTML = `<span class="text-emerald-600 bg-emerald-100 px-4 py-1.5 rounded-full"><i class="fa-solid fa-circle-check mr-1"></i> 太棒了！答對了！</span>`;
+                        feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 opacity-100 bounce-active";
+                        setTimeout(() => {
+                            generateQuestion();
+                        }, 1200);
+                    } else {
+                        let secondsLeft = 5;
+                        feedback.innerHTML = `<span class="text-purple-700 bg-purple-100 px-4 py-1.5 rounded-full"><i class="fa-solid fa-circle-check mr-1"></i> 答對了！倒數 <strong>${secondsLeft}</strong> 秒對照觀察時間...</span>`;
+                        feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 opacity-100";
+
+                        countdownInterval = setInterval(() => {
+                            secondsLeft--;
+                            if (secondsLeft > 0) {
+                                feedback.innerHTML = `<span class="text-purple-700 bg-purple-100 px-4 py-1.5 rounded-full"><i class="fa-solid fa-circle-check mr-1"></i> 答對了！倒數 <strong>${secondsLeft}</strong> 秒對照觀察時間...</span>`;
+                            } else {
+                                clearInterval(countdownInterval);
+                                generateQuestion();
+                            }
+                        }, 1000);
+                    }
+                }
+            } else {
+                errorCount++;
+                remainingTarget++;
+                updateStats();
+
+                card.classList.add('shake-active');
+                setTimeout(() => card.classList.remove('shake-active'), 400);
+
+                feedback.innerHTML = `<span class="text-rose-600 bg-rose-100 px-4 py-1 rounded-full"><i class="fa-solid fa-circle-xmark mr-1"></i> 答錯囉！請再試一次！（剩餘題數 +1）</span>`;
+                feedback.className = "h-8 text-center font-bold text-base sm:text-lg mt-2 opacity-100";
+
+                hourInput.focus();
+                hourInput.select();
+            }
+        }
+
+        function resetGame() {
+            document.getElementById('result-modal').classList.add('hidden');
+            switchLevel(currentLevel);
+        }
+
+        window.onload = function() {
+            switchLevel(1);
+        };
+    </script>
+
+</body>
+</html>
